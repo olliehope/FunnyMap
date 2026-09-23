@@ -71,8 +71,9 @@ from another project's corpus. Track only real observations in
 1. Install Fabric Loader, Fabric API, and Fabric Language Kotlin versions listed
    in the root README for Minecraft Java 26.1.2.
 2. Put the current development jar in the instance's `mods` directory.
-3. Enable the developer tools with environment variable
-   `FUNNYMAP_DEV_TOOLS=true` or JVM property `-Dfunnymap.devTools=true`.
+3. Development builds enable `/fmapdev` automatically. If it was deliberately
+   disabled previously, remove `FUNNYMAP_DEV_TOOLS=false` or
+   `-Dfunnymap.devTools=false`.
 4. Optionally enable the debug HUD with `FUNNYMAP_DEBUG_HUD=true` or JVM
    property `-Dfunnymap.debugHud=true`.
 5. Start Minecraft. Confirm the small `DEV` marker is visible.
@@ -80,9 +81,10 @@ from another project's corpus. Track only real observations in
    version, database identity, room and fingerprint counts, policy, and scanner
    lifecycle match the jar being tested.
 
-`/fmapdev` is registered only when both the build itself is a development build
-and developer tools are explicitly enabled. A release build cannot expose the
-commands through the flag.
+`/fmapdev` is registered automatically when the build itself is a development
+build. Set `FUNNYMAP_DEV_TOOLS=false` or JVM property
+`-Dfunnymap.devTools=false` to disable it. A release build cannot expose the
+commands through either flag.
 
 ## Check The Empty Database First
 

@@ -4,9 +4,19 @@ import com.andyy.funnymap.build.BuildInfo
 
 object RoomCaptureSettings {
 	val enabled: Boolean by lazy {
-		BuildInfo.current.isDevelopment &&
-			(readBoolean(System.getProperty(PROPERTY)) ?: readBoolean(System.getenv(ENVIRONMENT)) ?: false)
+		resolveEnabled(
+			isDevelopment = BuildInfo.current.isDevelopment,
+			propertyValue = System.getProperty(PROPERTY),
+			environmentValue = System.getenv(ENVIRONMENT),
+		)
 	}
+
+	/** Development builds default on; release builds remain off regardless of configuration. */
+	fun resolveEnabled(
+		isDevelopment: Boolean,
+		propertyValue: String?,
+		environmentValue: String?,
+	): Boolean = isDevelopment && (readBoolean(propertyValue) ?: readBoolean(environmentValue) ?: true)
 
 	private fun readBoolean(value: String?): Boolean? = when (value?.trim()?.lowercase()) {
 		null, "" -> null

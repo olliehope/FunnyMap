@@ -77,14 +77,16 @@ CI supplies a short commit using `-PbuildCommit=<sha>`. Release-tag builds use
 Generated `build-info.properties`, `fabric.mod.json`, the manifest, and jar name
 must agree; `verifyReleaseResources` checks them.
 
-With developer tools enabled, `/fmapdev status` prints version, commit, mode,
+In a development build, `/fmapdev status` prints version, commit, mode,
 Minecraft version, database digest, and room count. Development builds also
 show a small `DEV` HUD indicator.
 
 ## Developer Tools
 
-Set `FUNNYMAP_DEV_TOOLS=true` or JVM property `funnymap.devTools=true` to
-register `/fmapdev`. Set `FUNNYMAP_DEBUG_HUD=true` or JVM property
+Development builds register `/fmapdev` by default. Set
+`FUNNYMAP_DEV_TOOLS=false` or JVM property `funnymap.devTools=false` to disable
+it. Release builds never register these commands. Set
+`FUNNYMAP_DEBUG_HUD=true` or JVM property
 `funnymap.debugHud=true` for matcher/scanner diagnostics.
 
 Generated room artifacts are written below the game directory in

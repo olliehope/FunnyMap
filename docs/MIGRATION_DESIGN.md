@@ -151,9 +151,9 @@ is explicit: draft exports cannot silently become production definitions, and
 the finalizer emits the accepted samples, exclusions, and source capture ids for
 human review before a database resource is updated.
 
-The implemented tool is disabled for normal users. Set environment variable
-`FUNNYMAP_DEV_TOOLS=true` or JVM property `funnymap.devTools=true` before launch
-to register these client-side commands:
+The implemented tool is available by default only in development builds. Set
+`FUNNYMAP_DEV_TOOLS=false` or JVM property `funnymap.devTools=false` to disable
+it there. Release builds never register these client-side commands:
 
 ```text
 /fmapdev capture <roomId> <displayName> <type> <footprint> <secrets> <crypts> <rotation> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> [notes]
@@ -333,7 +333,7 @@ raw-capture JSON codecs, SHA-256 integrity identifiers, repeated-capture
 comparison, finalization, typed match evidence, and a load-time inverted
 candidate index. These packages contain no Minecraft or Fabric references.
 
-The capture-side live block reader is the opt-in developer capture adapter.
+The capture-side live block reader is the development-only capture adapter.
 Fabric client commands execute on the client thread, and the adapter
 additionally checks `Minecraft.isSameThread`. It partitions requested bounds
 by chunk,

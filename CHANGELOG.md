@@ -20,7 +20,7 @@ substantial milestones and compatibility can still change.
 
 - Empty-database scanner sessions now expose loaded-client-chunk activity and
   an explicit bootstrap explanation without fabricating room candidates.
-- The opt-in debug HUD and `/fmapdev` status tools expose database, observation,
+- The opt-in debug HUD and development `/fmapdev` status tools expose database, observation,
   match-evidence, cache, and invalidation state.
 
 ### Fixed
@@ -29,6 +29,8 @@ substantial milestones and compatibility can still change.
   commands.
 - Developer commands and local room overlays cannot be enabled in release
   builds.
+- Development builds now register `/fmapdev` by default instead of requiring a
+  second opt-in flag.
 
 ### Removed
 

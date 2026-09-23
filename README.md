@@ -41,7 +41,7 @@ enough to demonstrate real layouts without shipping copied third-party data.
   accounting, ambiguity rejection, and typed failure reasons.
 - Loaded-only incremental scanning with per-tick budgets, chunk dependency
   invalidation, and session-safe caches.
-- Opt-in `/fmapdev` capture, comparison, finalization, export, and build/database
+- Development-only `/fmapdev` capture, comparison, finalization, export, and build/database
   status tools for creating an independent room corpus.
 
 ## Client Data Boundary

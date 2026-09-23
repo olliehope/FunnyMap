@@ -28,9 +28,10 @@ RELEASE DATABASE
 
 ## Before Capturing
 
-Build a development jar, enable `FUNNYMAP_DEV_TOOLS=true`, and choose explicit
-metadata: stable room id, display name, room type, canonical footprint, secret
-count, crypt count, and observed rotation. Determine inclusive world bounds
+Build a development jar and choose explicit metadata: stable room id, display
+name, room type, canonical footprint, secret count, crypt count, and observed
+rotation. Development builds register `/fmapdev` automatically. Determine
+inclusive world bounds
 that use the room's north-west footprint boundary and a consistent vertical
 datum. The matcher does not need to recognise the room first.
 
