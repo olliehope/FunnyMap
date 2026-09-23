@@ -427,3 +427,18 @@ into `assets/funnymap/rooms.json`, rebuilt, and then recognised automatically.
 Milestone 5 remains responsible for validating orientation and multi-cell
 behaviour across the eventual independent room corpus. Player positions,
 doors, and completion state remain Milestone 6.
+
+## Corpus Alpha live-validation phase
+
+Milestone 5 remains blocked while approximately five independently captured
+normal 1x1 rooms exercise the Milestone 4 pipeline in live Catacombs. The
+development tooling now provides explicit corner marks, a non-writing capture
+preview and confirmation step, current-room evidence inspection, sanitized
+report export, structured scanner logging, and a strictly validated local
+development database overlay. None of these mechanisms changes matcher
+thresholds, guesses unavailable geometry, or extends Milestone 5 behavior.
+
+The field procedure and honest zero-room baseline are maintained in
+`docs/LIVE_VALIDATION.md`; real outcomes belong in
+`room-data/ALPHA_STATUS.md`. Corpus Alpha is not marked validated until actual
+fresh-dungeon recognition results exist.

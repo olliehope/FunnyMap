@@ -56,10 +56,12 @@ class DungeonMapLayoutEngineTest {
 		val text = plan.commands.filterIsInstance<Text>().map(Text::value)
 
 		assertTrue(text.any { it.startsWith("Scan: SCANNING") })
+		assertTrue(text.any { it.startsWith("DB: rooms=2") })
 		assertTrue(text.any { it.startsWith("Cell ?") })
+		assertTrue(text.any { it.startsWith("Evidence m=") })
 		assertTrue(text.any { it.startsWith("Best=") })
 		assertTrue(text.any { it.startsWith("Runner=") })
-		assertEquals(214, plan.height)
+		assertEquals(238, plan.height)
 	}
 
 	@Test

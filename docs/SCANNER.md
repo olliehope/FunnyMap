@@ -107,3 +107,15 @@ Set `FUNNYMAP_DEBUG_HUD=true` to inspect lifecycle, logical cell, coverage,
 shortlist size, candidates, score, margin, rotation, typed failure, queue totals,
 and cache state. Debug data is an immutable part of the published snapshot; the
 renderer never reads live scanner state.
+
+Development builds also provide `/fmapdev scanner`, `/fmapdev room`, and
+`/fmapdev debugcopy`. The last command writes a compact issue-ready report with
+build, floor, session, database, evidence, cache, and counter fields but no
+UUID, token, chat, or credential data. The `funnymap/scanner` logger emits
+structured session, database, discovery, observation, match, cache, and
+invalidation events without per-block logging.
+
+With an empty database, the scanner still tracks already delivered client
+chunks and reports an explicit `EMPTY_DATABASE` lifecycle. It cannot discover
+structural room origins without trusted definition anchors and does not
+fabricate them. Developer capture remains available as the corpus bootstrap.

@@ -16,10 +16,12 @@ import com.andyy.funnymap.dungeon.model.DungeonScannerDebug
 import com.andyy.funnymap.dungeon.model.DungeonSnapshot
 import com.andyy.funnymap.dungeon.model.GridPosition
 import com.andyy.funnymap.dungeon.model.RecognitionUnknownReason
+import com.andyy.funnymap.dungeon.model.RoomOrientation
 import com.andyy.funnymap.dungeon.model.RoomScanDebug
 import com.andyy.funnymap.dungeon.model.ScannerCacheState
 import com.andyy.funnymap.dungeon.model.ScannerCounters
 import com.andyy.funnymap.dungeon.model.ScannerLifecycleState
+import com.andyy.funnymap.dungeon.model.ScannerObservationState
 import com.andyy.funnymap.dungeon.room.CoverageRegion
 import com.andyy.funnymap.dungeon.room.GameDataVersion
 import com.andyy.funnymap.dungeon.room.HorizontalDatum
@@ -51,6 +53,7 @@ import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.chunk.status.ChunkStatus
+import org.slf4j.LoggerFactory
 import kotlin.math.max
 
 /** Loaded-only, client-thread runtime room scanner. */
@@ -69,6 +72,7 @@ object RoomScannerService {
 	private val matchCache = RoomMatchCache(config.maximumQueuedWork)
 	private val chunkRevisions = HashMap<Long, Long>()
 	private val surveyedChunks = HashMap<Long, Long>()
+	private val loadedChunks = HashSet<Long>()
 	private val anchorVotes = object : LinkedHashMap<ProposalKey, MutableSet<LocalBlockPosition>>() {
 		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ProposalKey, MutableSet<LocalBlockPosition>>?): Boolean =
 			size > config.maximumQueuedWork * ANCHOR_VOTE_GROUP_MULTIPLIER
@@ -102,6 +106,31 @@ object RoomScannerService {
 		ClientTickEvents.END_CLIENT_TICK.register(::onEndTick)
 	}
 
+	/** Returns the latest immutable diagnostic snapshot. Must be queried on the client thread. */
+	fun status(): DungeonScannerDebug {
+		check(Minecraft.getInstance().isSameThread) { "Scanner diagnostics must be queried on the client thread" }
+		return buildDebug()
+	}
+
+	/** Returns the nearest candidate observation to [world], without reading live world data. */
+	fun inspect(world: WorldCoordinate?): RoomScanDebug? {
+		check(Minecraft.getInstance().isSameThread) { "Room diagnostics must be queried on the client thread" }
+		if (world == null) return latestDebug?.toModel(logicalCellFor(latestDebug!!.origin))
+		val matched = records.entries
+			.map { (key, record) -> Triple(distanceSquared(world, key.origin, record.view.bounds), key, record) }
+			.filter { (distance) -> distance <= MAX_INSPECTION_DISTANCE_SQUARED }
+			.minWithOrNull(compareBy<Triple<Long, ProposalKey, RuntimeMatchRecord>> { it.first }
+				.thenByDescending { it.third.located.result is RoomMatchResult.Known })
+		if (matched != null) return LatestRuntimeDebug(matched.second.origin, matched.third)
+			.toModel(logicalCellFor(matched.second.origin))
+
+		val proposal = discoveredProposals.entries
+			.map { (key, view) -> Triple(distanceSquared(world, key.origin, view.bounds), key, view) }
+			.filter { (distance) -> distance <= MAX_INSPECTION_DISTANCE_SQUARED }
+			.minByOrNull { it.first }
+		return proposal?.let { (_, key, view) -> proposalDebug(key, view) }
+	}
+
 	private fun onEndTick(client: Minecraft) {
 		check(client.isSameThread) { "RoomScannerService must run on the Minecraft client thread" }
 		val level = client.level
@@ -112,6 +141,10 @@ object RoomScannerService {
 		}
 		if (level == null || DungeonDetectionService.context.catacombs != DetectionStatus.DETECTED) {
 			if (active) {
+				SCANNER_LOGGER.info(
+					"event=scanner_session_stop session={} reason=catacombs_not_detected",
+					activeSessionGeneration,
+				)
 				active = false
 				clearSessionWork()
 				emptyDatabasePublished = false
@@ -123,12 +156,26 @@ object RoomScannerService {
 		if (RoomDataService.database.cacheIdentity != databaseIdentity) {
 			rebuildDatabaseServices()
 			clearSessionWork()
+			active = false
 		}
 		if (RoomDataService.database.definitions.isEmpty()) {
-			active = true
+			if (!active) {
+				active = true
+				SCANNER_LOGGER.info(
+					"event=scanner_session_start session={} database={} rooms=0 mode=empty_database",
+					activeSessionGeneration,
+					databaseIdentity,
+				)
+			}
+			tick++
+			if (tick == 1L || tick % config.fallbackDiscoveryIntervalTicks == 0L) {
+				observeNearbyLoadedChunks(client, level, enqueue = false)
+			}
 			if (!emptyDatabasePublished) {
 				publishEmpty(RecognitionUnknownReason.NO_DATABASE_MATCH, ScannerLifecycleState.EMPTY_DATABASE)
 				emptyDatabasePublished = true
+			} else if (tick - lastPublishedTick >= config.fallbackDiscoveryIntervalTicks) {
+				publishEmpty(RecognitionUnknownReason.NO_DATABASE_MATCH, ScannerLifecycleState.EMPTY_DATABASE)
 			}
 			return
 		}
@@ -136,11 +183,18 @@ object RoomScannerService {
 		if (!active) {
 			active = true
 			emptyDatabasePublished = false
-			enqueueNearbyLoadedChunks(client, level)
+			SCANNER_LOGGER.info(
+				"event=scanner_session_start session={} database={} rooms={} fingerprints={}",
+				activeSessionGeneration,
+				databaseIdentity,
+				RoomDataService.database.definitions.size,
+				RoomDataService.database.definitions.sumOf { it.fingerprints.size },
+			)
+			observeNearbyLoadedChunks(client, level, enqueue = true)
 			publishSnapshot()
 		}
 		tick++
-		if (tick % config.fallbackDiscoveryIntervalTicks == 0L) enqueueNearbyLoadedChunks(client, level)
+		if (tick % config.fallbackDiscoveryIntervalTicks == 0L) observeNearbyLoadedChunks(client, level, enqueue = true)
 		enqueueDueRevalidations(level)
 		processWorldWork(level)
 		processMatches()
@@ -150,12 +204,13 @@ object RoomScannerService {
 	private fun onChunkLoad(level: ClientLevel, chunk: LevelChunk) {
 		val client = Minecraft.getInstance()
 		check(client.isSameThread) { "Chunk-load scanner callbacks must run on the client thread" }
-		if (!active || RoomDataService.database.definitions.isEmpty() ||
-			System.identityHashCode(level) != activeLevelIdentity
-		) return
+		if (!active || System.identityHashCode(level) != activeLevelIdentity) return
 		val x = chunk.pos.x()
 		val z = chunk.pos.z()
 		val key = ChunkPos.pack(x, z)
+		counters.chunkLoadEvents++
+		if (loadedChunks.add(key)) counters.loadedChunksObserved++
+		if (RoomDataService.database.definitions.isEmpty()) return
 		bumpChunkRevision(key)
 		surveyedChunks.remove(key)
 		invalidateChunkDependents(level, x, z)
@@ -165,12 +220,12 @@ object RoomScannerService {
 	private fun onChunkUnload(level: ClientLevel, chunk: LevelChunk) {
 		val client = Minecraft.getInstance()
 		check(client.isSameThread) { "Chunk-unload scanner callbacks must run on the client thread" }
-		if (!active || RoomDataService.database.definitions.isEmpty() ||
-			System.identityHashCode(level) != activeLevelIdentity
-		) return
+		if (!active || System.identityHashCode(level) != activeLevelIdentity) return
 		val x = chunk.pos.x()
 		val z = chunk.pos.z()
 		val key = ChunkPos.pack(x, z)
+		loadedChunks.remove(key)
+		if (RoomDataService.database.definitions.isEmpty()) return
 		bumpChunkRevision(key)
 		surveyedChunks.remove(key)
 		anchorQueue.removeIf { it.chunkKey == key }
@@ -188,6 +243,17 @@ object RoomScannerService {
 		pendingMatchProposals.removeAll(affected)
 		matchCache.invalidateDependency(dependency)
 		val changed = records.keys.removeAll(affected)
+		if (affected.isNotEmpty()) {
+			counters.invalidations += affected.size
+			SCANNER_LOGGER.debug(
+				"event=chunk_invalidation session={} chunk={},{} candidates={} retry={}",
+				activeSessionGeneration,
+				chunkX,
+				chunkZ,
+				affected.size,
+				retry,
+			)
+		}
 		if (retry) affected.forEach { proposal ->
 			discoveredProposals[proposal]?.let { enqueueObservation(level, proposal, it) }
 		}
@@ -264,7 +330,10 @@ object RoomScannerService {
 			FunnyMap.LOGGER.debug("Could not scan loaded client chunk {},{}", task.chunkX, task.chunkZ, error)
 			return max(1, reads)
 		}
-		if (task.sectionIndex >= sections.size) surveyedChunks[task.chunkKey] = expectedRevision
+		if (task.sectionIndex >= sections.size) {
+			surveyedChunks[task.chunkKey] = expectedRevision
+			counters.chunksSurveyed++
+		}
 		else anchorQueue.enqueue(task)
 		return reads
 	}
@@ -278,6 +347,7 @@ object RoomScannerService {
 		val raw = StructuralSample(LocalBlockPosition(0, 0, 0), blockId, snapshotProperties(state))
 		val accepted = (RoomDataService.database.candidateIndex.policy.apply(raw) as? PolicyDecision.Accepted)?.sample
 			?: return
+		counters.anchorSamples++
 		for (reference in anchorIndex.referencesFor(
 			accepted.blockId,
 			accepted.properties,
@@ -295,6 +365,16 @@ object RoomScannerService {
 			if (votes.size >= config.minimumAnchorVotes) {
 				if (!makeProposalCapacity()) continue
 				discoveredProposals[key] = reference.candidate
+				counters.proposalsDiscovered++
+				SCANNER_LOGGER.debug(
+					"event=candidate_discovered session={} origin={},{},{} candidate={} votes={}",
+					activeSessionGeneration,
+					origin.x,
+					origin.y,
+					origin.z,
+					candidateName(reference.candidate.key),
+					votes.size,
+				)
 				if (!enqueueObservation(level, key, reference.candidate)) {
 					discoveredProposals.remove(key)
 					anchorVotes.remove(key)
@@ -327,6 +407,15 @@ object RoomScannerService {
 		if (!observationQueue.enqueue(task)) return false
 		activeProposals += key
 		counters.roomsQueued++
+		SCANNER_LOGGER.debug(
+			"event=observation_queued session={} origin={},{},{} candidate={} volume={}",
+			activeSessionGeneration,
+			key.origin.x,
+			key.origin.y,
+			key.origin.z,
+			candidateName(view.key),
+			view.bounds.volume,
+		)
 		return true
 	}
 
@@ -374,6 +463,17 @@ object RoomScannerService {
 			revision = nextObservationRevision++,
 		)
 		counters.observationsCreated++
+		SCANNER_LOGGER.debug(
+			"event=observation_created session={} observation={} origin={},{},{} coverage={} samples={} unavailableRegions={}",
+			activeSessionGeneration,
+			observation.observationId,
+			task.key.origin.x,
+			task.key.origin.y,
+			task.key.origin.z,
+			observation.coverage.coverageRatio,
+			observation.samples.size,
+			observation.coverage.unavailableRegions.size,
+		)
 		val completed = CompletedObservation(
 			key = task.key,
 			view = task.view,
@@ -427,14 +527,46 @@ object RoomScannerService {
 					anchorVoteCount = anchorVotes[completed.key]?.size ?: config.minimumAnchorVotes,
 				),
 				view = completed.view,
+				observation = completed.observation,
 				dependencies = completed.dependencies,
 				cacheStatus = cached.status,
 				completedTick = tick,
 			)
 			records[completed.key] = record
 			latestDebug = LatestRuntimeDebug(completed.key.origin, record)
+			val evidence = cached.result.recognition.evidence
+			val failure = (cached.result as? RoomMatchResult.Unknown)?.reason
+			logMatch(
+				accepted = cached.result is RoomMatchResult.Known,
+				"event={} session={} observation={} origin={},{},{} best={} shortlist={} matched={} conflicts={} comparable={} observedCoverage={} definitionCoverage={} totalCoverage={} score={} runnerUp={} margin={} rotation={} failure={} cache={}",
+				if (cached.result is RoomMatchResult.Known) "match_accepted" else "match_rejected",
+				activeSessionGeneration,
+				completed.observation.observationId,
+				completed.key.origin.x,
+				completed.key.origin.y,
+				completed.key.origin.z,
+				cached.result.diagnostics.bestCandidate?.let(::candidateName) ?: "none",
+				cached.result.diagnostics.shortlistSize,
+				evidence.matchedSampleCount,
+				evidence.conflictingSampleCount,
+				evidence.comparableSampleCount,
+				evidence.observedToDefinitionCoverage,
+				evidence.definitionToObservedCoverage,
+				evidence.totalDefinitionCoverage,
+				evidence.candidateScore,
+				evidence.runnerUpScore,
+				evidence.scoreMargin,
+				evidence.candidateRotation?.degrees ?: "unknown",
+				failure?.name ?: "none",
+				cached.status.name,
+			)
 			publishSnapshot()
 		}
+	}
+
+	private fun logMatch(accepted: Boolean, message: String, vararg arguments: Any?) {
+		if (accepted) SCANNER_LOGGER.info(message, *arguments)
+		else SCANNER_LOGGER.debug(message, *arguments)
 	}
 
 	private fun enqueueDueRevalidations(level: ClientLevel) {
@@ -448,11 +580,15 @@ object RoomScannerService {
 		}
 	}
 
-	private fun enqueueNearbyLoadedChunks(client: Minecraft, level: ClientLevel) {
+	private fun observeNearbyLoadedChunks(client: Minecraft, level: ClientLevel, enqueue: Boolean) {
 		val center = client.player?.chunkPosition() ?: return
 		for (x in center.x() - config.chunkDiscoveryRadius..center.x() + config.chunkDiscoveryRadius) {
 			for (z in center.z() - config.chunkDiscoveryRadius..center.z() + config.chunkDiscoveryRadius) {
-				if (level.chunkSource.getChunk(x, z, ChunkStatus.FULL, false) != null) enqueueChunk(x, z)
+				if (level.chunkSource.getChunk(x, z, ChunkStatus.FULL, false) != null) {
+					val key = ChunkPos.pack(x, z)
+					if (loadedChunks.add(key)) counters.loadedChunksObserved++
+					if (enqueue) enqueueChunk(x, z)
+				}
 			}
 		}
 	}
@@ -476,6 +612,14 @@ object RoomScannerService {
 		if (DungeonSnapshotStore.publish(session, snapshot)) {
 			nextSnapshotRevision = revision + 1
 			lastPublishedTick = tick
+			counters.snapshotsPublished++
+			SCANNER_LOGGER.debug(
+				"event=snapshot_published session={} revision={} rooms={} lifecycle={}",
+				activeSessionGeneration,
+				revision,
+				snapshot.grid.roomsById.size,
+				snapshot.scannerDebug?.lifecycle?.name ?: "unknown",
+			)
 		}
 	}
 
@@ -492,6 +636,7 @@ object RoomScannerService {
 		if (DungeonSnapshotStore.publish(session, snapshot)) {
 			nextSnapshotRevision = revision + 1
 			lastPublishedTick = tick
+			counters.snapshotsPublished++
 		}
 	}
 
@@ -509,6 +654,46 @@ object RoomScannerService {
 			queuedWork = anchorQueue.size + observationQueue.size + matchQueue.size,
 			counters = counters.snapshot(),
 			latestRoom = latestDebug?.let { it.toModel(logicalCellFor(it.origin)) },
+			databaseFingerprintCount = RoomDataService.database.definitions.sumOf { it.fingerprints.size },
+			databaseIdentity = databaseIdentity,
+			fingerprintPolicyVersion = RoomDataService.database.fingerprintPolicyVersion,
+			loadedChunkCount = loadedChunks.size,
+			surveyedChunkCount = surveyedChunks.size,
+			anchorVoteGroupCount = anchorVotes.size,
+			discoveredProposalCount = discoveredProposals.size,
+			statusMessage = when (lifecycle) {
+				ScannerLifecycleState.INACTIVE -> "Scanner waits for positive Catacombs detection."
+				ScannerLifecycleState.EMPTY_DATABASE ->
+					"The active room database is empty. Loaded chunks are tracked, but anchor discovery requires a reviewed bundled definition or development overlay. Capture tools remain available."
+				ScannerLifecycleState.DISCOVERING -> "Scanning loaded chunks for structural anchors."
+				ScannerLifecycleState.SCANNING -> "Candidate observations or matches are in the bounded work queue."
+				ScannerLifecycleState.READY -> "At least one room is recognised in the current session."
+			},
+		)
+	}
+
+	private fun proposalDebug(key: ProposalKey, view: CandidateView): RoomScanDebug {
+		val state = when (key) {
+			in pendingMatchProposals -> ScannerObservationState.MATCH_QUEUED
+			in activeProposals -> ScannerObservationState.OBSERVING
+			else -> ScannerObservationState.OBSERVATION_QUEUED
+		}
+		return RoomScanDebug(
+			observationId = "pending-${key.origin.x}-${key.origin.y}-${key.origin.z}",
+			logicalCell = logicalCellFor(key.origin),
+			worldOrigin = key.origin,
+			footprint = view.footprint,
+			localBounds = view.bounds,
+			observationState = state,
+			definitionSampleCount = view.samples.size,
+			candidateCount = 1,
+			bestCandidate = candidateName(view.key),
+			rotation = view.key.rotation,
+			diagnosticMessage = when (state) {
+				ScannerObservationState.MATCH_QUEUED -> "Immutable observation is waiting for matcher verification."
+				ScannerObservationState.OBSERVING -> "Loaded-only room observation is being collected incrementally."
+				else -> "Structural anchors produced a candidate; observation is queued."
+			},
 		)
 	}
 
@@ -533,6 +718,13 @@ object RoomScannerService {
 			config.maximumAnchorSignatureReferences,
 		)
 		matchCache.retainDatabase(databaseIdentity)
+		SCANNER_LOGGER.info(
+			"event=scanner_database_ready identity={} rooms={} fingerprints={} anchorBlocks={}",
+			databaseIdentity,
+			database.definitions.size,
+			database.definitions.sumOf { it.fingerprints.size },
+			anchorIndex.blockIds.size,
+		)
 	}
 
 	private fun resetForSession(generation: Long, levelIdentity: Int, currentRevision: Long) {
@@ -547,6 +739,7 @@ object RoomScannerService {
 		emptyDatabasePublished = false
 		matchCache.retainSession(generation)
 		counters.reset()
+		SCANNER_LOGGER.debug("event=scanner_session_reset session={} levelIdentity={}", generation, levelIdentity)
 	}
 
 	private fun clearSessionWork() {
@@ -555,6 +748,7 @@ object RoomScannerService {
 		matchQueue.clear()
 		chunkRevisions.clear()
 		surveyedChunks.clear()
+		loadedChunks.clear()
 		anchorVotes.clear()
 		discoveredProposals.clear()
 		activeProposals.clear()
@@ -698,6 +892,7 @@ object RoomScannerService {
 	private data class RuntimeMatchRecord(
 		val located: LocatedRoomMatch,
 		val view: CandidateView,
+		val observation: RoomObservation,
 		val dependencies: List<MatchDataDependency>,
 		val cacheStatus: MatchCacheStatus,
 		val completedTick: Long,
@@ -710,22 +905,41 @@ object RoomScannerService {
 		fun toModel(logicalCell: GridPosition?): RoomScanDebug {
 			val result = record.located.result
 			val evidence = result.recognition.evidence
+			val known = result as? RoomMatchResult.Known
 			return RoomScanDebug(
 				observationId = result.observationId,
 				logicalCell = logicalCell,
-				availableCoverage = evidence.availableCoverage,
+				worldOrigin = origin,
+				footprint = record.view.footprint,
+				localBounds = record.view.bounds,
+				observationState = if (known != null) ScannerObservationState.MATCHED else ScannerObservationState.REJECTED,
+				availableCoverage = record.observation.coverage.coverageRatio,
+				eligibleSampleCount = evidence.observedSampleCount,
+				definitionSampleCount = evidence.definitionSampleCount,
+				matchedSampleCount = evidence.matchedSampleCount,
+				conflictingSampleCount = evidence.conflictingSampleCount,
+				comparableSampleCount = evidence.comparableSampleCount,
+				observedToDefinitionCoverage = evidence.observedToDefinitionCoverage,
+				definitionToObservedCoverage = evidence.definitionToObservedCoverage,
+				totalDefinitionCoverage = evidence.totalDefinitionCoverage,
 				candidateCount = result.diagnostics.shortlistSize,
 				bestCandidate = result.diagnostics.bestCandidate?.let(::candidateName),
 				runnerUpCandidate = result.diagnostics.runnerUpCandidate?.let(::candidateName),
 				score = evidence.candidateScore,
+				runnerUpScore = evidence.runnerUpScore,
 				margin = evidence.scoreMargin,
-				rotation = evidence.candidateRotation,
+				matchedRoomId = known?.definition?.id?.value,
+				matchedRoomName = known?.definition?.displayName,
+				matchedFingerprintId = known?.fingerprintId,
+				rotation = if (known == null) evidence.candidateRotation
+				else (known.orientation as? RoomOrientation.Known)?.rotation,
 				failureReason = (result as? RoomMatchResult.Unknown)?.reason,
 				cacheState = when (record.cacheStatus) {
 					MatchCacheStatus.EXACT_HIT -> ScannerCacheState.EXACT_HIT
 					MatchCacheStatus.FINGERPRINT_HIT -> ScannerCacheState.FINGERPRINT_HIT
 					MatchCacheStatus.MISS -> ScannerCacheState.MISS
 				},
+				diagnosticMessage = result.diagnostics.message,
 			)
 		}
 	}
@@ -742,6 +956,13 @@ object RoomScannerService {
 		var cacheMisses = 0L
 		var scanTimeNanos = 0L
 		var matchTimeNanos = 0L
+		var chunkLoadEvents = 0L
+		var loadedChunksObserved = 0L
+		var chunksSurveyed = 0L
+		var anchorSamples = 0L
+		var proposalsDiscovered = 0L
+		var invalidations = 0L
+		var snapshotsPublished = 0L
 
 		fun reset() {
 			roomsQueued = 0
@@ -755,20 +976,34 @@ object RoomScannerService {
 			cacheMisses = 0
 			scanTimeNanos = 0
 			matchTimeNanos = 0
+			chunkLoadEvents = 0
+			loadedChunksObserved = 0
+			chunksSurveyed = 0
+			anchorSamples = 0
+			proposalsDiscovered = 0
+			invalidations = 0
+			snapshotsPublished = 0
 		}
 
 		fun snapshot(): ScannerCounters = ScannerCounters(
-			roomsQueued,
-			roomsScanned,
-			chunksUnavailable,
-			observationsCreated,
-			shortlistCandidates,
-			successfulMatches,
-			failedMatches,
-			cacheHits,
-			cacheMisses,
-			scanTimeNanos,
-			matchTimeNanos,
+			roomsQueued = roomsQueued,
+			roomsScanned = roomsScanned,
+			chunksUnavailable = chunksUnavailable,
+			observationsCreated = observationsCreated,
+			shortlistCandidates = shortlistCandidates,
+			successfulMatches = successfulMatches,
+			failedMatches = failedMatches,
+			cacheHits = cacheHits,
+			cacheMisses = cacheMisses,
+			scanTimeNanos = scanTimeNanos,
+			matchTimeNanos = matchTimeNanos,
+			chunkLoadEvents = chunkLoadEvents,
+			loadedChunksObserved = loadedChunksObserved,
+			chunksSurveyed = chunksSurveyed,
+			anchorSamples = anchorSamples,
+			proposalsDiscovered = proposalsDiscovered,
+			invalidations = invalidations,
+			snapshotsPublished = snapshotsPublished,
 		)
 	}
 
@@ -783,6 +1018,22 @@ object RoomScannerService {
 		val minChunkZ = Math.floorDiv(proposal.origin.z + view.bounds.min.z, CHUNK_SIZE)
 		val maxChunkZ = Math.floorDiv(proposal.origin.z + view.bounds.max.z, CHUNK_SIZE)
 		return chunkX in minChunkX..maxChunkX && chunkZ in minChunkZ..maxChunkZ
+	}
+
+	private fun distanceSquared(
+		world: WorldCoordinate,
+		origin: WorldCoordinate,
+		bounds: LocalBlockBounds,
+	): Long {
+		fun axisDistance(value: Int, minimum: Int, maximum: Int): Long = when {
+			value < minimum -> (minimum - value).toLong()
+			value > maximum -> (value - maximum).toLong()
+			else -> 0L
+		}
+		val dx = axisDistance(world.x, origin.x + bounds.min.x, origin.x + bounds.max.x)
+		val dy = axisDistance(world.y, origin.y + bounds.min.y, origin.y + bounds.max.y)
+		val dz = axisDistance(world.z, origin.z + bounds.min.z, origin.z + bounds.max.z)
+		return dx * dx + dy * dy + dz * dz
 	}
 
 	private fun partitionRegions(origin: WorldCoordinate, bounds: LocalBlockBounds): List<RuntimeRegion> {
@@ -826,4 +1077,7 @@ object RoomScannerService {
 	private const val CHUNK_MASK = CHUNK_SIZE - 1
 	private const val BLOCKS_PER_SECTION = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE
 	private const val ANCHOR_VOTE_GROUP_MULTIPLIER = 4
+	private const val MAX_INSPECTION_DISTANCE = 32L
+	private const val MAX_INSPECTION_DISTANCE_SQUARED = MAX_INSPECTION_DISTANCE * MAX_INSPECTION_DISTANCE
+	private val SCANNER_LOGGER = LoggerFactory.getLogger("${FunnyMap.MOD_ID}/scanner")
 }

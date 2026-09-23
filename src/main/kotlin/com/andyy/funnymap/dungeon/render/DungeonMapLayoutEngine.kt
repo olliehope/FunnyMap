@@ -313,7 +313,9 @@ object DungeonMapLayoutEngine {
 			val margin = latest?.margin?.let { formatPercent(it) } ?: "?"
 			return listOf(
 				"Scan: ${scanner.lifecycle.name} q=${scanner.queuedWork} ok=${scanner.counters.successfulMatches} fail=${scanner.counters.failedMatches}",
+				"DB: rooms=${scanner.databaseRoomCount} fp=${scanner.databaseFingerprintCount} loaded=${scanner.loadedChunkCount} proposals=${scanner.discoveredProposalCount}",
 				"Cell $cell cov=${formatPercent(latest?.availableCoverage ?: 0.0)} candidates=${latest?.candidateCount ?: 0} cache=${latest?.cacheState?.name ?: "?"}",
+				"Evidence m=${latest?.matchedSampleCount ?: 0} x=${latest?.conflictingSampleCount ?: 0} n=${latest?.comparableSampleCount ?: 0} obs=${formatPercent(latest?.observedToDefinitionCoverage ?: 0.0)} avail=${formatPercent(latest?.definitionToObservedCoverage ?: 0.0)} total=${formatPercent(latest?.totalDefinitionCoverage ?: 0.0)}",
 				"Best=${latest?.bestCandidate ?: "?"} score=${formatPercent(latest?.score ?: 0.0)} margin=$margin rot=$rotation",
 				"Runner=${latest?.runnerUpCandidate ?: "?"} state=${latest?.failureReason?.name ?: "KNOWN_OR_PENDING"}",
 			)

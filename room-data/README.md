@@ -14,3 +14,8 @@ commit bulk raw capture sets.
 Every definition must be independently captured with FunnyMap tooling and pass
 both human review and `./gradlew validateRoomDatabase`. See
 [docs/ROOM_DATA.md](../docs/ROOM_DATA.md) for the complete workflow.
+
+The initial five-room proof is tracked in [ALPHA_STATUS.md](ALPHA_STATUS.md),
+with its field procedure in
+[docs/LIVE_VALIDATION.md](../docs/LIVE_VALIDATION.md). Do not add placeholder
+room rows or mark recognition successful without a fresh-dungeon test.

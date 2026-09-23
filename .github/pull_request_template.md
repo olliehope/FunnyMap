@@ -18,6 +18,8 @@ List the commands and relevant manual checks performed.
 - [ ] No force-loading, unavailable-world probing, packet spoofing, automation,
       gameplay assistance, or anti-cheat bypass was introduced.
 - [ ] Room-data changes include capture/finalization evidence and independent provenance.
+- [ ] Corpus Alpha room changes update `room-data/ALPHA_STATUS.md` with a real
+      fresh-dungeon result, or clearly mark that result not yet tested.
 - [ ] Documentation and changelog were updated where applicable.
 
 ## Room Data

@@ -79,6 +79,9 @@ development reports, exports, fixtures, or synthetic room IDs enter the jar.
 
 Room-data branches should use `room-data/<short-room-name>`. Follow
 [docs/ROOM_DATA.md](docs/ROOM_DATA.md) from capture through human review.
+During the initial corpus proof, use `room-data/alpha-<short-room-name>`, follow
+[docs/LIVE_VALIDATION.md](docs/LIVE_VALIDATION.md), and update the real room row
+in [room-data/ALPHA_STATUS.md](room-data/ALPHA_STATUS.md).
 
 A room-data pull request should report:
 
@@ -89,6 +92,7 @@ A room-data pull request should report:
 - fingerprint-policy version;
 - the compact finalization report;
 - the resulting exported definition and production database change.
+- a fresh-dungeon recognition result when the room is part of Corpus Alpha.
 
 Commit the reviewed production change in
 `src/main/resources/assets/funnymap/rooms.json`. A compact review artifact may

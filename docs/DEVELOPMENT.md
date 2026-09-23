@@ -89,6 +89,9 @@ register `/fmapdev`. Set `FUNNYMAP_DEBUG_HUD=true` or JVM property
 
 Generated room artifacts are written below the game directory in
 `funnymap-room-captures/` and are ignored by Git. See [ROOM_DATA.md](ROOM_DATA.md).
+The first live-corpus procedure, all development command syntax, the strict
+local overlay, and the fresh-dungeon acceptance test are documented in
+[LIVE_VALIDATION.md](LIVE_VALIDATION.md).
 
 ## Releases
 

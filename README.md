@@ -110,7 +110,9 @@ or ambiguous evidence. See [Scanner](docs/SCANNER.md) and
 The production corpus must be independently captured with this project's
 tooling. Public availability of another project's database is not permission to
 copy it. The capture-to-review process is documented in
-[Room Data Contributions](docs/ROOM_DATA.md).
+[Room Data Contributions](docs/ROOM_DATA.md). Project owners collecting the
+first live definitions should follow [Corpus Alpha Live Validation](docs/LIVE_VALIDATION.md)
+and record real results in [Alpha Status](room-data/ALPHA_STATUS.md).
 
 ## Contributing
 

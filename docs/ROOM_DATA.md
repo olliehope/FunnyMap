@@ -39,7 +39,25 @@ lookups and records unavailable coverage explicitly.
 
 ## Capture and Compare
 
-Example for a one-cell test room:
+For live collection, prefer the reviewed two-step workflow. It removes the need
+to type large world-coordinate bounds and does not write until the preview is
+confirmed:
+
+```text
+/fmapdev capturemark min
+/fmapdev capturemark max
+/fmapdev capturemark show
+/fmapdev capturehere catacombs/test-room "Test Room" NORMAL "0,0" 3 1 0 first-pass
+/fmapdev captureconfirm
+```
+
+Shape, footprint, rotation, bounds, secrets, and crypts remain developer
+assertions. The command never guesses them. Use `/fmapdev capturecancel` for an
+incomplete preview. The exact in-dungeon procedure is in
+[LIVE_VALIDATION.md](LIVE_VALIDATION.md).
+
+The original explicit-bounds form remains available for scripted or otherwise
+hard-to-target volumes:
 
 ```text
 /fmapdev capture catacombs/test-room "Test Room" NORMAL "0,0" 3 1 0 100 60 200 131 79 231 first-pass
@@ -75,6 +93,12 @@ funnymap-room-captures/
   reports/
   exports/
 ```
+
+A development build may additionally load a reviewed full database document at
+`funnymap-room-captures/dev-rooms.json` using `/fmapdev reload`. It passes the
+same validation and policy checks as bundled data, rejects duplicate ids, is
+ignored by Git, and is never packaged. The bundled database remains
+authoritative in release builds.
 
 ## What to Commit
 

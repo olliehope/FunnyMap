@@ -1,8 +1,11 @@
 package com.andyy.funnymap.client.capture
 
+import com.andyy.funnymap.build.BuildInfo
+
 object RoomCaptureSettings {
 	val enabled: Boolean by lazy {
-		readBoolean(System.getProperty(PROPERTY)) ?: readBoolean(System.getenv(ENVIRONMENT)) ?: false
+		BuildInfo.current.isDevelopment &&
+			(readBoolean(System.getProperty(PROPERTY)) ?: readBoolean(System.getenv(ENVIRONMENT)) ?: false)
 	}
 
 	private fun readBoolean(value: String?): Boolean? = when (value?.trim()?.lowercase()) {
