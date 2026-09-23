@@ -1,0 +1,72 @@
+# gradle
+
+/.gradle/
+/.kotlin/
+/build/
+/out/
+/classes/
+
+# eclipse
+
+*.launch
+
+# idea
+
+/.idea/
+/.fleet/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+/.settings/
+/.vscode/
+/bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+/run/
+/logs/
+/crash-reports/
+/saves/
+/screenshots/
+/resourcepacks/
+/shaderpacks/
+/options.txt
+/servers.dat
+
+# FunnyMap generated room data and distribution staging
+
+funnymap-room-captures/
+**/funnymap-room-captures/
+room-data/raw/
+room-data/local/
+room-data/reports/
+room-data/exports/
+*.room-capture.json
+/dist/
+
+# local secrets
+
+.env
+.env.*
+!.env.example
+.secrets/
+*.pem
+*.key
+*.p12
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+*.log

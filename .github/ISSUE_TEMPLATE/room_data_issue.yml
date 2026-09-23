@@ -1,0 +1,82 @@
+name: Room-data issue
+description: Report a missing, incorrect, or ambiguous independently captured room definition.
+title: "[Room Data]: "
+labels:
+  - room-data
+body:
+  - type: input
+    id: room
+    attributes:
+      label: Room name or stable id
+      description: Enter Unknown if neither is known.
+    validations:
+      required: true
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: FunnyMap version
+      placeholder: 0.4.0-dev+abcdef0
+    validations:
+      required: true
+
+  - type: input
+    id: floor
+    attributes:
+      label: Dungeon floor
+      placeholder: F5
+    validations:
+      required: true
+
+  - type: input
+    id: shape
+    attributes:
+      label: Observed room shape
+      placeholder: 1x1, 1x2, 1x3, 1x4, 2x2, or L
+    validations:
+      required: true
+
+  - type: input
+    id: rotation
+    attributes:
+      label: Observed rotation
+      placeholder: 0, 90, 180, 270, or Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: detected
+    attributes:
+      label: Detected result
+      description: Include the room name/id, orientation, or typed failure FunnyMap displayed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: matcher
+    attributes:
+      label: Debug matcher output
+      description: Include coverage, candidate count, best/runner-up, score, margin, rotation, failure reason, and cache status.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or additional context
+      description: Attach a screenshot only when useful. Remove chat, usernames, coordinates, or other personal information when unnecessary.
+
+  - type: checkboxes
+    id: provenance
+    attributes:
+      label: Data provenance
+      options:
+        - label: This report does not include copied third-party room fingerprints or database data.
+          required: true

@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "funnymap",
+	"version": "${version}",
+	"name": "FunnyMap",
+	"description": "A client-safe Hypixel SkyBlock dungeon map and room-recognition backend.",
+	"authors": [
+		"andyy"
+	],
+	"license": "CC0-1.0",
+	"icon": "assets/funnymap/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			{
+				"value": "com.andyy.funnymap.FunnyMap",
+				"adapter": "kotlin"
+			}
+		],
+		"client": [
+			{
+				"value": "com.andyy.funnymap.client.FunnyMapClient",
+				"adapter": "kotlin"
+			}
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*",
+		"fabric-language-kotlin": "*"
+	}
+}

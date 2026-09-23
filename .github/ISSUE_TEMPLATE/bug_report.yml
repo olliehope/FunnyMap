@@ -1,0 +1,95 @@
+name: Bug report
+description: Report reproducible incorrect behavior or a crash.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Remove credentials, session tokens, server addresses, and personal information from logs.
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: FunnyMap version
+      description: Include the full version shown by `/fmapdev status` when available.
+      placeholder: 0.4.0-dev+abcdef0
+    validations:
+      required: true
+
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      placeholder: 26.1.2
+    validations:
+      required: true
+
+  - type: input
+    id: fabric-version
+    attributes:
+      label: Fabric Loader and Fabric API versions
+      placeholder: Loader 0.19.5, Fabric API 0.155.3+26.1.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build-kind
+    attributes:
+      label: Build kind
+      options:
+        - Release build
+        - Development artifact
+        - Local source build
+    validations:
+      required: true
+
+  - type: input
+    id: floor
+    attributes:
+      label: Dungeon floor
+      description: Use N/A when the problem is outside Catacombs.
+      placeholder: F7
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Describe the smallest reliable sequence that triggers the problem.
+      placeholder: |
+        1. Join...
+        2. Enter...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug
+    attributes:
+      label: Scanner or debug output
+      description: Include typed failure, coverage, candidates, score, and cache status when relevant.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only the relevant section and redact credentials or personal information.
+      render: shell
+
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I reproduced this on the stated version and removed sensitive information.
+          required: true

@@ -1,0 +1,7 @@
+# Normalize project text for Linux CI while keeping the Windows launcher native.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Never apply text conversion to bundled binary resources.
+*.jar binary
+*.png binary
