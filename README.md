@@ -76,7 +76,7 @@ development artifact as an official release.
 Clone the repository and use the checked-in Gradle wrapper:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/olliehope/FunnyMap.git
 cd FunnyMap
 ./gradlew test validateRoomDatabase build verifyReleaseResources
 ```

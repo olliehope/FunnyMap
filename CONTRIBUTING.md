@@ -30,7 +30,7 @@ Recommended GitHub protection is documented in [Development](docs/DEVELOPMENT.md
 Install a Java 25 JDK, clone the repository, and use the included wrapper:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/olliehope/FunnyMap.git
 cd FunnyMap
 git switch dev
 ./gradlew test validateRoomDatabase build verifyReleaseResources
