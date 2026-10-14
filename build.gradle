@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
-	id "org.jetbrains.kotlin.jvm" version "2.4.20"
+	id "org.jetbrains.kotlin.jvm" version "2.4.21"
 }
 
 def baseVersion = project.version.toString()
@@ -50,7 +50,7 @@ dependencies {
     implementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
 
 	testImplementation platform("org.junit:junit-bom:5.10.2")
-	testImplementation "org.jetbrains.kotlin:kotlin-test-junit5:2.4.20"
+	testImplementation "org.jetbrains.kotlin:kotlin-test-junit5:2.4.21"
 	testImplementation "org.junit.jupiter:junit-jupiter"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
